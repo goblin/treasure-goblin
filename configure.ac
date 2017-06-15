@@ -1,4 +1,4 @@
-AC_INIT([treasure_goblin], [0.0], [goblin@example.com])
+AC_INIT([treasure-goblin], [0.1], [goblin@example.com])
 AM_INIT_AUTOMAKE([foreign -Wall -Werror])
 : ${CFLAGS="-O0 -ggdb -Wall -Wextra"}
 : ${CXXFLAGS="-O0 -ggdb -Wall"} # libbitcoin and extra warnings are meh
