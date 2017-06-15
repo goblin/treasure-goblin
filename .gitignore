@@ -1,0 +1,15 @@
+.*.swp
+Makefile
+Makefile.in
+aclocal.m4
+autom4te.cache
+compile
+config.*
+configure
+depcomp
+install-sh
+missing
+.deps
+*.o
+stamp-h1
+src/wordlist.h

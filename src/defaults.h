@@ -1,0 +1,30 @@
+#ifndef DEFAULTS_H
+#define DEFAULTS_H
+
+#include <sodium.h>
+
+#define DEFAULT_PBKDF2_ITERS 2048
+
+// in MiB
+#define DEFAULT_SCRYPT_MEMLIMIT \
+	(crypto_pwhash_scryptsalsa208sha256_MEMLIMIT_SENSITIVE / (1024*1024))
+
+#define DEFAULT_SCRYPT_OPSLIMIT \
+	crypto_pwhash_scryptsalsa208sha256_OPSLIMIT_SENSITIVE
+
+#define DEFAULT_ARGON2_PARALLEL 4
+
+// in MiB
+#define DEFAULT_ARGON2_MEM (1024 + 512)
+#define DEFAULT_ARGON2_ITERS 3
+
+#define MAX_MASTER_PASSWD_LEN 4096
+#define MASTER_ENTROPY_SIZE 64
+#define DERIVED_ENTROPY_SIZE 64
+
+#define PBKDF2_DIGEST_ALGO EVP_sha512
+
+#define VERIFICATION_KEY_NAME "verification"
+#define WORDLIST_BITS 11
+
+#endif
