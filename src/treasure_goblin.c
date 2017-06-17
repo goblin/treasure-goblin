@@ -584,6 +584,10 @@ int main(int argc, char **argv)
 	master_entropy = passwd_to_entropy(&tgo, salt, master_passwd);
 	sodium_free(master_passwd);
 	free(salt);
+	if(!master_entropy) {
+		printf("error\n");
+		return 4;
+	}
 
 	if(debug_mode) {
 		printf("master entropy: "); 
