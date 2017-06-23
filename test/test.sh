@@ -4,7 +4,7 @@ SALT="salt"
 PASSWORD="password"
 EXTRA_CMDS=""
 
-# b2sum -l 256
+# echo -n salt | b2sum -l 256
 HASHED_SALT="3aa394787f34eb230efca0f1e966703d685515731780d34f729eeafa375721f1"
 
 # PBKDF2, 2048 rounds
@@ -15,6 +15,8 @@ EXPECTED_PBKDF2="8c8b751010ad92f1f54151386a4eb5247ab343ce88de79983d5e3e995b7f5ae
 EXPECTED_SCRYPT="824f41b868f8f1f7c0cd7fc526c02a00e478a309b06856011eacb0ee3afd04033c4b8ab349c2489f22813dfc0de9169c6bd0b0c3be7b36f4beb1cba73a89c98f"
 
 # echo -n password | ./argon2 $(echo 3aa394787f34eb230efca0f1e966703d685515731780d34f729eeafa375721f1 | xxd -r -ps) -t 3 -m 12 -p 4 -l 64
+# WARNING: ensure that when changing password, the resulting salt
+#   doesn't contain the 0-byte as argon2 cli won't handle that
 EXPECTED_ARGON2="11eacdfd0a758f940b891b630b1a95e4de20ffb5a5c1baaf06307d79b2e19cec40cb1bcf8155fff6e187a136ba366bba530af7627f3d683d6742abfe1d41ad84"
 
 # this is XOR of the 3 above
@@ -66,8 +68,8 @@ function test_equal() {
 	if [ "$2" != "$3" ]
 	then
 		echo -e "$1 \x1b[31;1mmismatch!\x1b[0m"
-		echo "  " got: "$2"
-		echo "  " exp: "$3"
+		echo "  " exp: "$2"
+		echo "  " got: "$3"
 		echo -e "\x1b[0m"
 		exit 1
 	else
