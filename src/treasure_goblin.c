@@ -420,10 +420,13 @@ static void print_verification(const unsigned char *entropy, const int entsize,
 static void print_help()
 {
 	printf("\n"
-			"help              Show command help\n"
-			"exit, quit        Exit program\n"
-			"h <key>           Print hex data for <key>\n"
-			"r                 Toggle readable output\n"
+			"help            Show command help\n"
+			"exit, quit      Exit program\n"
+			"h <key>         Print hex data for <key>\n"
+			"r               Toggle readable output\n"
+			"for <var> <from> <to>: <cmd>\n"
+			"                Iterate <var> on the range [<from>, <to>) and execute\n"
+			"                <cmd> substituting <var> for each integer value\n"
 #ifdef HAVE_LIBBITCOIN
 		  "\nxprv <key>  Print HD xprv key for <key>\n"
 			"xpub <key>  Print HD xpub key for <key>\n"
@@ -475,6 +478,92 @@ static int cmd_readable(CMD_ARGS)
 {
 	readable = !readable;
 	printf("readable = %d\n", readable);
+	return RESULT_OK;
+}
+
+static char* str_replace_all(const int maxlen, const char *haystack, 
+		const char *needle, const int replacement)
+{
+	char *rv = malloc(maxlen);
+	if(!rv)
+		return NULL;
+
+	char *c;
+	if((c = strstr(haystack, needle))) {
+		strncpy(rv, haystack, c-haystack);
+		snprintf(rv + (c - haystack), 22, "%d", replacement);
+		char *rest = str_replace_all(maxlen, c + strlen(needle), 
+				needle, replacement);
+		strcat(rv + strlen(rv), rest);
+		free(rest);
+	} else {
+		strcpy(rv, haystack);
+	}
+
+	return rv;
+}
+
+static int process_cmd(const char *, const char *,
+	const unsigned char *, const int, const char **);
+
+static int cmd_for(CMD_ARGS)
+{
+	char *cmd = strstr(arg, ": ");
+	if(!cmd) {
+		printf("need a colon followed by a space\n");
+		return RESULT_OK;
+	}
+
+	*cmd = 0;
+	cmd += 2;
+
+	char *first_space = strchr(arg, ' ');
+	if(!first_space) {
+		printf("need 2 spaces before the colon\n");
+		return RESULT_OK;
+	}
+	const char *var = arg;
+	*first_space = 0;
+	first_space++;
+
+	char *second_space = strchr(first_space, ' ');
+	if(!second_space) {
+		printf("need 2 spaces before the colon\n");
+		return RESULT_OK;
+	}
+	*second_space = 0;
+	second_space++;
+
+	int from = atoi(first_space);
+	int to = atoi(second_space);
+
+	int numvars = 0;
+	for(char *c = cmd; c && *c; ) {
+		c = strstr(c, var);
+		if(c) {
+			numvars++;
+			c++;
+		}
+	}
+
+	for(int i = from; i < to; i++) {
+		const int MAX_NUMLEN=24;
+		const int newcmd_maxlen = strlen(cmd) + numvars * MAX_NUMLEN + 1;
+		char *newcmd = str_replace_all(newcmd_maxlen, cmd, var, i);
+
+		printf("%s: ", newcmd);
+		
+		char *newarg = strchr(newcmd, ' ');
+		if(newarg) {
+			*newarg = 0;
+			newarg++;
+		}
+
+		process_cmd(newcmd, newarg, entropy, entsize, dict);
+
+		free(newcmd);
+	}
+
 	return RESULT_OK;
 }
 
@@ -534,6 +623,7 @@ static int process_cmd(const char *cmd, const char *arg,
 		{ "exit", cmd_quit },
 		{ "h", cmd_hex },
 		{ "r", cmd_readable },
+		{ "for", cmd_for },
 #ifdef HAVE_LIBBITCOIN
 		{ "xprv", cmd_xprv },
 		{ "xpub", cmd_xpub },
@@ -551,7 +641,7 @@ static int process_cmd(const char *cmd, const char *arg,
 	return RESULT_OK;
 }
 
-static int cmd_loop(const unsigned char *entropy, const int entsize,
+static int mainloop(const unsigned char *entropy, const int entsize,
 	const char **dict)
 {
 	char *cmd = linenoise("cmd> ");
@@ -625,7 +715,7 @@ int main(int argc, char **argv)
 	print_help();
 	print_verification(master_entropy, MASTER_ENTROPY_SIZE, dict);
 
-	while(cmd_loop(master_entropy, MASTER_ENTROPY_SIZE, dict) == RESULT_OK);
+	while(mainloop(master_entropy, MASTER_ENTROPY_SIZE, dict) == RESULT_OK);
 
 	sodium_free(master_entropy);
 
