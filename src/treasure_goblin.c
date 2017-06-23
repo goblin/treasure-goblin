@@ -26,6 +26,7 @@ struct tg_opts {
 	long argon2_parallel;
 	long argon2_iters;
 	long argon2_mem; // in MiB
+	char *master_entropy;
 };
 
 // globals
@@ -47,14 +48,15 @@ static void print_usage()
 {
 	print_version();
 	printf("switches: \n"
-		"\t--help                      -h        	this help\n"
+		"\t--help                      -h          	this help\n"
 		"\t--version                   -v           version info\n"
-		"\t--pbkdf2-iters=<num>        -k num    	PBKDF2 iterations (def: %d)\n"
-		"\t--scrypt-opslimit=<num>     -s num    	scrypt opslimit (def: %llu)\n"
-		"\t--scrypt-memlimit=<MiB>     -S MiB    	scrypt memlimit (def: %llu)\n"
-		"\t--argon2-parallel=<threads> -p threads	Argon2 parallelization (def: %d)\n"
-		"\t--argon2-iters=<num>        -i num    	Argon2 iterations (def: %d)\n"
-		"\t--argon2-mem=<MiB>          -m MiB    	Argon2 memory (def: %d)\n\n"
+		"\t--pbkdf2-iters=<num>        -k <num>    	PBKDF2 iterations (def: %d)\n"
+		"\t--scrypt-opslimit=<num>     -s <num>    	scrypt opslimit (def: %llu)\n"
+		"\t--scrypt-memlimit=<MiB>     -S <MiB>    	scrypt memlimit (def: %llu)\n"
+		"\t--argon2-parallel=<threads> -p <threads>	Argon2 parallelization (def: %d)\n"
+		"\t--argon2-iters=<num>        -i <num>    	Argon2 iterations (def: %d)\n"
+		"\t--argon2-mem=<MiB>          -m <MiB>    	Argon2 memory (def: %d)\n"
+		"\t--master-entropy=<hexdata>  -e <hexdata>	Set master entropy manually. Ignores pbkdf2/scrypt/argon2 switches.\n\n"
 		"\t--readable                  -r        	Start in readable mode\n",
 		DEFAULT_PBKDF2_ITERS,
 		DEFAULT_SCRYPT_OPSLIMIT,
@@ -74,7 +76,8 @@ static struct tg_opts parse_opts(int argc, char **argv)
 		DEFAULT_SCRYPT_MEMLIMIT,
 		DEFAULT_ARGON2_PARALLEL,
 		DEFAULT_ARGON2_ITERS,
-		DEFAULT_ARGON2_MEM
+		DEFAULT_ARGON2_MEM,
+		NULL
 	};
 	struct option opts[] = {
 		{"help", no_argument, NULL, 'h'},
@@ -85,6 +88,7 @@ static struct tg_opts parse_opts(int argc, char **argv)
 		{"argon2-parallel", required_argument, NULL, 'p'},
 		{"argon2-iters", required_argument, NULL, 'i'},
 		{"argon2-mem", required_argument, NULL, 'm'},
+		{"master-entropy", required_argument, NULL, 'e'},
 
 		{"readable", no_argument, NULL, 'r'},
 		{"debug", no_argument, NULL, 'D'},
@@ -93,7 +97,7 @@ static struct tg_opts parse_opts(int argc, char **argv)
 	};
 
 	while(1) {
-		int c = getopt_long(argc, argv, "hvk:s:S:p:i:m:rD", opts, NULL);
+		int c = getopt_long(argc, argv, "hvk:s:S:p:i:m:e:rD", opts, NULL);
 		if(c == -1)
 			break;
 		switch(c) {
@@ -124,6 +128,9 @@ static struct tg_opts parse_opts(int argc, char **argv)
 			case 'v':
 				print_version();
 				exit(0);
+				break;
+			case 'e':
+				rv.master_entropy = optarg;
 				break;
 			case 'r':
 				readable = 1;
@@ -679,6 +686,17 @@ static int mainloop(const unsigned char *entropy, const int entsize,
 	return rv;
 }
 
+static void read_hex(unsigned char *data, const char *hex)
+{
+	char single[3] = "\x0\x0\x0";
+	for(unsigned i = 0; i < strlen(hex); i+=2) {
+		single[0] = hex[i];
+		single[1] = hex[i+1];
+		unsigned long int v = strtoul(single, NULL, 16);
+		data[i/2] = (unsigned char)v;
+	}
+}
+
 int main(int argc, char **argv)
 {
 	struct tg_opts tgo = parse_opts(argc, argv);
@@ -695,23 +713,34 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	printf("Please enter your " C_WHITE "salt" C_RESET ":\n");
-	salt = linenoise(C_WHITE "salt" C_RESET "> ");
-	if(!salt) {
-		printf("error\n");
-		return 2;
+	if(tgo.master_entropy) {
+		if(strlen(tgo.master_entropy) != MASTER_ENTROPY_SIZE * 2) {
+			printf("--master-entropy must be %d bytes long\n", MASTER_ENTROPY_SIZE);
+			return 2;
+		}
+		master_entropy = sodium_malloc(MASTER_ENTROPY_SIZE);
+		read_hex(master_entropy, tgo.master_entropy);
+		sodium_memzero(tgo.master_entropy, MASTER_ENTROPY_SIZE * 2);
+	} else {
+		printf("Please enter your " C_WHITE "salt" C_RESET ":\n");
+		salt = linenoise(C_WHITE "salt" C_RESET "> ");
+		if(!salt) {
+			printf("error\n");
+			return 2;
+		}
+
+		printf("Please enter your " C_RED "MASTER PASSWORD" C_RESET ":\n");
+		master_passwd = get_password();
+		if(!master_passwd) {
+			printf("error\n");
+			return 3;
+		}
+
+		master_entropy = passwd_to_entropy(&tgo, salt, master_passwd);
+		sodium_free(master_passwd);
+		free(salt);
 	}
 
-	printf("Please enter your " C_RED "MASTER PASSWORD" C_RESET ":\n");
-	master_passwd = get_password();
-	if(!master_passwd) {
-		printf("error\n");
-		return 3;
-	}
-
-	master_entropy = passwd_to_entropy(&tgo, salt, master_passwd);
-	sodium_free(master_passwd);
-	free(salt);
 	if(!master_entropy) {
 		printf("error\n");
 		return 4;
