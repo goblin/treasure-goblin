@@ -45,6 +45,23 @@ EXPECTED_XPRV="xprv9s21ZrQH143K4WDK8aersZzi2ToeUkwuNX2MaY9YnMeznzMjrd9PpBpng3qZi
 # bx hd-to-public $EXPECTED_XPRV
 EXPECTED_XPUB="xpub661MyMwAqRbcGzHnEcBsEhwSaVe8tDfkjjwxNvZALhByfngtQATeMz9GXJ1jb7PqC2fzCMKmVJU3pjLsnqWCBj12xxheu9A2VHAoZFk9nSZ"
 
+SLASHES="acct/0/wallet/0"
+
+# bx hd-new / hd-to-public as with EXPECTED_X{PRV,PUB}
+# but entropy comes from something like this code...
+
+# (up to and including `h = blake2b(...)` as with EXPECTED_VERIFICATION, then:
+#   h.update(b'acct')
+#   acct = blake2b(data=h.digest()).digest()
+#   zero1 = blake2b(data= blake2b(key=acct, data=b'0').digest()).digest()
+#   wallet = blake2b(data= blake2b(key=zero1, data=b'wallet').digest()).digest()
+#   zero2 = blake2b(data= blake2b(key=wallet, data=b'0').digest())
+#   zero2.hexdigest()
+
+# this gives: 797888d96ae093109dc591ed0596b812e4d95f37b56fb7e0e2cdf9faec962f0761970fdc1e81048490ce25b7ea146366c0713e343a03408484ce7ad9c7621458
+EXPECTED_XPRV_SLASHES="xprv9s21ZrQH143K3LMYD1kikkrNE1JrvqR2RvRZg8mrDeUku6Q1BvrkBRPpeSKeN3vodbPTmFnzzfyyV8Vqd8w6QbkpaPCP4F3ajcNAj5hj71G"
+EXPECTED_XPUB_SLASHES="xpub661MyMwAqRbcFpS1K3Hj7to6n39MLJ8so9MAUXBTmz1jmtj9jUAzjDiJVkE75371VYBWLtuGAAhf2pSuoRGMpfFJD6uicjap3Z44eKEuDox"
+
 function run_tg() {
 	echo -e "$SALT\n$PASSWORD\n$EXTRA_CMDS" | 
 		../src/treasure_goblin --debug $@
@@ -96,29 +113,31 @@ test_equal argon2 "$EXPECTED_ARGON2" \
 	$(get_master_entropy --pbkdf2-iters=0 --scrypt-opslimit=0 \
 		--argon2-iters=3 --argon2-parallel=4 --argon2-mem=4)
 
+STD_ARGS="--pbkdf2-iters=2048 
+		--scrypt-opslimit=32768 --scrypt-memlimit=16 
+		--argon2-iters=3 --argon2-parallel=4 --argon2-mem=4"
+
 test_equal all3 "$EXPECTED_ALL3" \
-	$(get_master_entropy --pbkdf2-iters=2048 \
-		--scrypt-opslimit=32768 --scrypt-memlimit=16 \
-		--argon2-iters=3 --argon2-parallel=4 --argon2-mem=4)
+	$(get_master_entropy $STD_ARGS)
 
 test_equal verification "$EXPECTED_VERIFICATION" \
-	$(get_verification_data --pbkdf2-iters=2048 \
-		--scrypt-opslimit=32768 --scrypt-memlimit=16 \
-		--argon2-iters=3 --argon2-parallel=4 --argon2-mem=4)
+	$(get_verification_data $STD_ARGS)
 
 test_equal words "$EXPECTED_WORDS" \
-	$(get_verification_words --pbkdf2-iters=2048 \
-		--scrypt-opslimit=32768 --scrypt-memlimit=16 \
-		--argon2-iters=3 --argon2-parallel=4 --argon2-mem=4 | xxd -ps)
+	$(get_verification_words $STD_ARGS | xxd -ps)
 
 EXTRA_CMDS='xprv verification\n'
 test_equal xprv "$EXPECTED_XPRV" \
-	$(gethead "xprv verification" \
-		--pbkdf2-iters=2048 --scrypt-opslimit=32768 --scrypt-memlimit=16 \
-		--argon2-iters=3 --argon2-parallel=4 --argon2-mem=4)
+	$(gethead "xprv verification" $STD_ARGS)
 
 EXTRA_CMDS='xpub verification\n'
 test_equal xpub "$EXPECTED_XPUB" \
-	$(gethead "xpub verification" \
-		--pbkdf2-iters=2048 --scrypt-opslimit=32768 --scrypt-memlimit=16 \
-		--argon2-iters=3 --argon2-parallel=4 --argon2-mem=4)
+	$(gethead "xpub verification" $STD_ARGS)
+
+EXTRA_CMDS="xprv $SLASHES\\n"
+test_equal xprv_slashes "$EXPECTED_XPRV_SLASHES" \
+	$(gethead "xprv $SLASHES" $STD_ARGS)
+
+EXTRA_CMDS="xpub $SLASHES\\n"
+test_equal xpub_slashes "$EXPECTED_XPUB_SLASHES" \
+	$(gethead "xpub $SLASHES" $STD_ARGS)
