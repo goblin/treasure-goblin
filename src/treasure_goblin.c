@@ -273,25 +273,47 @@ done:
 }
 
 // remember to sodium_free!
+// `keyname` is not considered a cryptographic string, it will be
+//    a simple identifier like 'verification' or 'wallet/0'.
+//    slashes are considered as separators.
 static unsigned char *derive_key_name(const unsigned char *entropy, 
 		const int entsize, const char *keyname)
 {
 	unsigned char *rv = sodium_malloc(DERIVED_ENTROPY_SIZE);
 	unsigned char *first = sodium_malloc(DERIVED_ENTROPY_SIZE);
+	char *subkey = strdup(keyname);
+	char *nextkey;
 
-	if(!rv || !first) {
-		printf("sodium_malloc() failed\n");
-		return NULL;
+	if(!rv || !first || !subkey) {
+		goto failure;
 	}
 
-	crypto_generichash(first, DERIVED_ENTROPY_SIZE, (unsigned char*)keyname, 
-			strlen(keyname), entropy, entsize);
+	if((nextkey = strchr(subkey, '/'))) {
+		*nextkey = 0;
+		nextkey++;
+	}
+
+	crypto_generichash(first, DERIVED_ENTROPY_SIZE, (unsigned char*)subkey, 
+			strlen(subkey), entropy, entsize);
 	crypto_generichash(rv, DERIVED_ENTROPY_SIZE, first, DERIVED_ENTROPY_SIZE,
 			NULL, 0);
 
 	sodium_free(first);
 
+	if(nextkey) {
+		unsigned char *rrv = derive_key_name(rv, DERIVED_ENTROPY_SIZE, nextkey);
+		sodium_free(rv);
+		rv = rrv;
+	}
+	free(subkey);
 	return rv;
+
+failure:
+	sodium_free(rv);
+	sodium_free(first);
+	free(subkey);
+	printf("memory allocation failed\n");
+	return NULL;
 }
 
 static unsigned int get_bits(const unsigned char *data,
