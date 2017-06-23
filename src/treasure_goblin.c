@@ -56,7 +56,7 @@ static void print_usage()
 		"\t--argon2-parallel=<threads> -p <threads>	Argon2 parallelization (def: %d)\n"
 		"\t--argon2-iters=<num>        -i <num>    	Argon2 iterations (def: %d)\n"
 		"\t--argon2-mem=<MiB>          -m <MiB>    	Argon2 memory (def: %d)\n"
-		"\t--master-entropy=<hexdata>  -e <hexdata>	Set master entropy manually. Ignores pbkdf2/scrypt/argon2 switches.\n\n"
+		"\t--master-entropy=<hexdata>  -e <hexdata>	Set master entropy manually. Ignores pbkdf2/scrypt/argon2 switches. '-' means read from stdin.\n\n"
 		"\t--readable                  -r        	Start in readable mode\n",
 		DEFAULT_PBKDF2_ITERS,
 		DEFAULT_SCRYPT_OPSLIMIT,
@@ -166,6 +166,7 @@ static int switch_echo(int flag)
 	return 1;
 }
 
+// remember to sodium_free()!
 static char *get_password()
 {
 	char *rv;
@@ -697,11 +698,62 @@ static void read_hex(unsigned char *data, const char *hex)
 	}
 }
 
+static unsigned char *get_master_entropy_from_param(struct tg_opts *tgo)
+{
+	char *hexdata = tgo->master_entropy;
+	int read_from_stdin = 0;
+	unsigned char *master_entropy = NULL;
+
+	if(strcmp(hexdata, "-") == 0) {
+		printf("Please enter your " C_YELLOW "MASTER ENTROPY"C_RESET":\n");
+		hexdata = get_password();
+		read_from_stdin = 1;
+	}
+	if(strlen(hexdata) != MASTER_ENTROPY_SIZE * 2) {
+		sodium_memzero(hexdata, strlen(hexdata));
+		printf("--master-entropy must be %d bytes long\n", MASTER_ENTROPY_SIZE);
+		return NULL;
+	}
+	master_entropy = sodium_malloc(MASTER_ENTROPY_SIZE);
+	read_hex(master_entropy, hexdata);
+	if(read_from_stdin)
+		sodium_free(hexdata);
+	else
+		sodium_memzero(hexdata, MASTER_ENTROPY_SIZE * 2);
+
+	return master_entropy;
+}
+
+static unsigned char *get_master_entropy_by_pwd_hash(struct tg_opts *tgo)
+{
+	unsigned char *master_entropy = NULL;
+	char *salt = NULL;
+	char *master_passwd = NULL;
+
+	printf("Please enter your " C_WHITE "salt" C_RESET ":\n");
+	salt = linenoise(C_WHITE "salt" C_RESET "> ");
+	if(!salt) {
+		printf("no salt?\n");
+		return NULL;
+	}
+
+	printf("Please enter your " C_RED "MASTER PASSWORD" C_RESET ":\n");
+	master_passwd = get_password();
+	if(!master_passwd) {
+		printf("no password?\n");
+		return NULL;
+	}
+
+	master_entropy = passwd_to_entropy(tgo, salt, master_passwd);
+	sodium_free(master_passwd);
+	free(salt);
+
+	return master_entropy;
+}
+
 int main(int argc, char **argv)
 {
 	struct tg_opts tgo = parse_opts(argc, argv);
-	char *salt = NULL;
-	char *master_passwd = NULL;
 	unsigned char *master_entropy = NULL;
 	const char *dict[] = {
 #include "wordlist.h"
@@ -714,36 +766,14 @@ int main(int argc, char **argv)
 	}
 
 	if(tgo.master_entropy) {
-		if(strlen(tgo.master_entropy) != MASTER_ENTROPY_SIZE * 2) {
-			printf("--master-entropy must be %d bytes long\n", MASTER_ENTROPY_SIZE);
-			return 2;
-		}
-		master_entropy = sodium_malloc(MASTER_ENTROPY_SIZE);
-		read_hex(master_entropy, tgo.master_entropy);
-		sodium_memzero(tgo.master_entropy, MASTER_ENTROPY_SIZE * 2);
+		master_entropy = get_master_entropy_from_param(&tgo);
 	} else {
-		printf("Please enter your " C_WHITE "salt" C_RESET ":\n");
-		salt = linenoise(C_WHITE "salt" C_RESET "> ");
-		if(!salt) {
-			printf("error\n");
-			return 2;
-		}
-
-		printf("Please enter your " C_RED "MASTER PASSWORD" C_RESET ":\n");
-		master_passwd = get_password();
-		if(!master_passwd) {
-			printf("error\n");
-			return 3;
-		}
-
-		master_entropy = passwd_to_entropy(&tgo, salt, master_passwd);
-		sodium_free(master_passwd);
-		free(salt);
+		master_entropy = get_master_entropy_by_pwd_hash(&tgo);
 	}
 
 	if(!master_entropy) {
 		printf("error\n");
-		return 4;
+		return 2;
 	}
 
 	if(debug_mode) {
