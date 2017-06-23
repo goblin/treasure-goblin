@@ -277,13 +277,19 @@ static unsigned char *derive_key_name(const unsigned char *entropy,
 		const int entsize, const char *keyname)
 {
 	unsigned char *rv = sodium_malloc(DERIVED_ENTROPY_SIZE);
-	if(!rv) {
+	unsigned char *first = sodium_malloc(DERIVED_ENTROPY_SIZE);
+
+	if(!rv || !first) {
 		printf("sodium_malloc() failed\n");
 		return NULL;
 	}
 
-	crypto_generichash(rv, DERIVED_ENTROPY_SIZE, (unsigned char*)keyname, 
+	crypto_generichash(first, DERIVED_ENTROPY_SIZE, (unsigned char*)keyname, 
 			strlen(keyname), entropy, entsize);
+	crypto_generichash(rv, DERIVED_ENTROPY_SIZE, first, DERIVED_ENTROPY_SIZE,
+			NULL, 0);
+
+	sodium_free(first);
 
 	return rv;
 }

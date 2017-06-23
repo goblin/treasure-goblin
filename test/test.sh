@@ -26,17 +26,24 @@ EXPECTED_ALL3="1f2ef9557220ec923e05359e47940ac040eb1f729d77953625c2f30ed363c20b2
 #   from pyblake2 import blake2b
 #   h = blake2b(key='1f2ef9557220ec923e05359e47940ac040eb1f729d77953625c2f30ed363c20b244b0b737cda9a778879722121b06a2029aee2f1d8b4c0f57c6fa8d465658134'.decode('hex'))
 #   h.update(b'verification')
-#   h.hexdigest()
-EXPECTED_VERIFICATION="9216425d7c4d25d91d1fa93399b26bea6726f07528c0c6b116ae8f4aed52fc9d4ebd688bedef7bc32767b599dcf25f16d47622e00eaa4b8d6289475ec797592c"
+#   h2 = blake2b()
+#   h2.update(h.digest())
+#   h2.hexdigest()
+EXPECTED_VERIFICATION="090ec8ec00cb456d9d46189b4ae7bc339e2b456f4dc198c6a6cad21bac78a65b1cc3940bda90ec5f910a33b6f3bc61f81ce5953aa6d9a977982ae10cbfee487f"
 
-# echo -e "\x1b[34;1mmust \x1b[35;1mrare\x1b[0m" | xxd -ps
-EXPECTED_WORDS="1b5b33343b316d6d757374201b5b33353b316d726172651b5b306d0a"
+# echo 090ec8ec  | xxd -r -ps | xxd -b
+# first 11 bits: 00001001 000 = 72  -> 73rd  word in dict is animal
+# next  11 bits: 01110110 010 = 946 -> 947th word in dict is iron
+# next   3 bits: 001 = 1 -> red
+# next   3 bits: 110 = 6 -> cyan
+# echo -e "\x1b[31;1manimal \x1b[36;1miron\x1b[0m" | xxd -ps
+EXPECTED_WORDS="1b5b33313b316d616e696d616c201b5b33363b316d69726f6e1b5b306d0a"
 
 # bx hd-new $EXPECTED_VERIFICATION
-EXPECTED_XPRV="xprv9s21ZrQH143K3SqmpBASiQ9sEgFZTNjiGfcSvppKHoowEJM1f4JYwUkXknmSLf8qLPxenAxr8GYPPepp4bWCRwieG8bpAbqCJfoDEhML2hg"
+EXPECTED_XPRV="xprv9s21ZrQH143K4WDK8aersZzi2ToeUkwuNX2MaY9YnMeznzMjrd9PpBpng3qZi817pz5MbEBuiGTqLjAKuy9wunU6mpcRznSWdXpA2FfRQFB"
 
 # bx hd-to-public $EXPECTED_XPRV
-EXPECTED_XPUB="xpub661MyMwAqRbcFvvEvChT5Y6bni63rqTZdtY3jDDvr9Lv76gACbcoVH51c632JanFZjULtQMigqeyggbN9Xd5WTMrqgdLPGNVE9cKGFi9wgA"
+EXPECTED_XPUB="xpub661MyMwAqRbcGzHnEcBsEhwSaVe8tDfkjjwxNvZALhByfngtQATeMz9GXJ1jb7PqC2fzCMKmVJU3pjLsnqWCBj12xxheu9A2VHAoZFk9nSZ"
 
 function run_tg() {
 	echo -e "$SALT\n$PASSWORD\n$EXTRA_CMDS" | 
