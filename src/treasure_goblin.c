@@ -537,6 +537,16 @@ static int cmd_for(CMD_ARGS)
 	int from = atoi(first_space);
 	int to = atoi(second_space);
 
+	if(to <= from) {
+		printf("to should be greater than from\n");
+		return RESULT_OK;
+	}
+
+	if(to - from > 100000) {
+		printf("max iterations is 100k\n");
+		return RESULT_OK;
+	}
+
 	int numvars = 0;
 	for(char *c = cmd; c && *c; ) {
 		c = strstr(c, var);
