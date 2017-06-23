@@ -147,6 +147,11 @@ EXTRA_CMDS="xpub $SLASHES\\n"
 test_equal xpub_slashes "$EXPECTED_XPUB_SLASHES" \
 	$(gethead "xpub $SLASHES" $STD_ARGS)
 
-RUN_TG_CMDS=""
+RUN_TG_CMDS="\n"
 test_equal master-entropy "$EXPECTED_VERIFICATION" \
-	$(get_verification_data --master-entropy=1f2ef9557220ec923e05359e47940ac040eb1f729d77953625c2f30ed363c20b244b0b737cda9a778879722121b06a2029aee2f1d8b4c0f57c6fa8d465658134)
+	$(get_verification_data --master-entropy=$EXPECTED_ALL3)
+
+RUN_TG_CMDS="$EXPECTED_ALL3\n"
+test_equal master-entropy-stdin "$EXPECTED_VERIFICATION" \
+	$(get_verification_data --master-entropy=-)
+
