@@ -13,6 +13,10 @@ typedef enum {
 } e_btc_xkeytype;
 
 EXTERNC int bitcoin_get_xkey(const unsigned char *, unsigned, 
-		unsigned char*, unsigned, e_btc_xkeytype);
+		char*, unsigned, e_btc_xkeytype);
+EXTERNC int bitcoin_get_electrum_seed(const unsigned char *entropy, 
+		unsigned entsize, char *rv, unsigned rvsize);
+EXTERNC int bitcoin_get_electrum_1st(const unsigned char *entropy, 
+		unsigned entsize, char *rv, unsigned rvsize);
 
 #endif

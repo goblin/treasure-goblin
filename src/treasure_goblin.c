@@ -40,7 +40,7 @@ static void print_version()
 			"yes"
 #else
 			"no"
-#endif
+#endif // HAVE_LIBBITCOIN
 	);
 }
 
@@ -381,9 +381,9 @@ static void print_hex(const unsigned char *data, const int len)
 	pretty_print(data, len, hex_printer, 2);
 }
 
-static void print_str(const unsigned char *data)
+static void print_str(const char *data)
 {
-	pretty_print(data, strlen((char*)data), char_printer, 4);
+	pretty_print((const unsigned char*)data, strlen(data), char_printer, 4);
 }
 
 static void print_verification(const unsigned char *entropy, const int entsize, 
@@ -431,14 +431,18 @@ static void print_help()
 			"help            Show command help\n"
 			"exit, quit      Exit program\n"
 			"h <key>         Print hex data for <key>\n"
+			"h32 <key>       as above but truncate to 256 bits\n"
+			"h16 <key>       as above but truncate to 128 bits\n"
 			"r               Toggle readable output\n"
 			"for <var> <from> <to>: <cmd>\n"
 			"                Iterate <var> on the range [<from>, <to>) and execute\n"
 			"                <cmd> substituting <var> for each integer value\n"
 #ifdef HAVE_LIBBITCOIN
-		  "\nxprv <key>  Print HD xprv key for <key>\n"
-			"xpub <key>  Print HD xpub key for <key>\n"
-#endif
+		  "\nxprv <key>    Print HD xprv key for <key>\n"
+			"xpub <key>    Print HD xpub key for <key>\n"
+			"eseed <key>   Print Electrum seed for <key>\n"
+			"e1st <key>    Print 1st bitcoin address used by Electrum from above seed\n"
+#endif // HAVE_LIBBITCOIN
 			"\n");
 }
 
@@ -462,7 +466,7 @@ static int cmd_quit(CMD_ARGS)
 	return RESULT_QUIT;
 }
 
-static int cmd_hex(CMD_ARGS)
+static int cmd_hex(CMD_ARGS, int len)
 {
 	unsigned char *data;
 
@@ -474,12 +478,35 @@ static int cmd_hex(CMD_ARGS)
 	data = derive_key_name(entropy, entsize, arg);
 
 	if(data)
-		print_hex(data, DERIVED_ENTROPY_SIZE);
+		print_hex(data, len);
 	else
 		perror("derive_key_name failed");
 
 	sodium_free(data);
 	return RESULT_OK;
+}
+
+static int cmd_h(CMD_ARGS)
+{
+	return cmd_hex(CMD_ARGNAMES, DERIVED_ENTROPY_SIZE);
+}
+
+static int cmd_h32(CMD_ARGS)
+{
+	if(DERIVED_ENTROPY_SIZE <= 32) {
+		perror("assertion failed in cmd_hex32");
+		return RESULT_QUIT;
+	}
+	return cmd_hex(CMD_ARGNAMES, 32);
+}
+
+static int cmd_h16(CMD_ARGS)
+{
+	if(DERIVED_ENTROPY_SIZE <= 32) {
+		perror("assertion failed in cmd_hex16");
+		return RESULT_QUIT;
+	}
+	return cmd_hex(CMD_ARGNAMES, 16);
 }
 
 static int cmd_readable(CMD_ARGS)
@@ -596,7 +623,7 @@ static int cmd_xkey(CMD_ARGS, e_btc_xkeytype keytype)
 	}
 
 	unsigned char *data = derive_key_name(entropy, entsize, arg);
-	unsigned char *xkey = sodium_malloc(BITCOIN_KEY_MAXLEN);
+	char *xkey = sodium_malloc(BITCOIN_KEY_MAXLEN);
 
 	if(data && xkey) {
 		if(bitcoin_get_xkey(data, DERIVED_ENTROPY_SIZE, 
@@ -625,7 +652,65 @@ static int cmd_xpub(CMD_ARGS)
 {
 	return cmd_xkey(CMD_ARGNAMES, BTC_XPUB);
 }
-#endif
+
+static int cmd_eseed(CMD_ARGS)
+{
+	if(!arg) {
+		printf("need an arg\n");
+		return RESULT_OK;
+	}
+
+	if(DERIVED_ENTROPY_SIZE <= 16) {
+		printf("assertion failed in cmd_eseed");
+		return RESULT_QUIT;
+	}
+
+	unsigned char *data = derive_key_name(entropy, entsize, arg);
+	char *seed = sodium_malloc(512);
+
+	if(data && seed) {
+		if(bitcoin_get_electrum_seed(data, 16, seed, 511)) {
+			print_str(seed);
+		} else
+			perror("bitcoin_get_electrum_seed");
+	} else {
+		perror("malloc?");
+	}
+	
+	sodium_free(data);
+	sodium_free(seed);
+	return RESULT_OK;
+}
+
+static int cmd_e1st(CMD_ARGS)
+{
+	if(!arg) {
+		printf("need an arg\n");
+		return RESULT_OK;
+	}
+
+	if(DERIVED_ENTROPY_SIZE <= 16) {
+		printf("assertion failed in cmd_e1st");
+		return RESULT_QUIT;
+	}
+
+	unsigned char *data = derive_key_name(entropy, entsize, arg);
+	char *addr = sodium_malloc(64);
+
+	if(data && addr) {
+		if(bitcoin_get_electrum_1st(data, 16, addr, 63)) {
+			print_str(addr);
+		} else
+			perror("bitcoin_get_electrum_1st");
+	} else {
+		perror("malloc?");
+	}
+	
+	sodium_free(data);
+	sodium_free(addr);
+	return RESULT_OK;
+}
+#endif // HAVE_LIBBITCOIN
 
 #pragma GCC diagnostic pop
 
@@ -639,13 +724,17 @@ static int process_cmd(const char *cmd, const char *arg,
 		{ "help", cmd_help },
 		{ "quit", cmd_quit },
 		{ "exit", cmd_quit },
-		{ "h", cmd_hex },
+		{ "h", cmd_h },
+		{ "h32", cmd_h32 },
+		{ "h16", cmd_h16 },
 		{ "r", cmd_readable },
 		{ "for", cmd_for },
 #ifdef HAVE_LIBBITCOIN
 		{ "xprv", cmd_xprv },
 		{ "xpub", cmd_xpub },
-#endif
+		{ "eseed", cmd_eseed },
+		{ "e1st", cmd_e1st },
+#endif // HAVE_LIBBITCOIN
 		{ NULL, NULL }
 	};
 
