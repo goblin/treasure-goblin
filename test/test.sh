@@ -164,9 +164,13 @@ RUN_TG_CMDS="$EXPECTED_ALL3\n"
 test_equal master-entropy-stdin "$EXPECTED_VERIFICATION" \
 	$(get_verification_data --master-entropy=-)
 
+# need the 'for' so it prints the command so gethead can get it
+RUN_TG_CMDS="for xx 0 1: h .\n"
+test_equal dot-addr "$EXPECTED_ALL3" \
+	$(gethead "h ." --master-entropy="$EXPECTED_ALL3")
+
 RUN_TG_CMDS=""
 
-# need the 'for' so it prints the command so gethead can get it
 EXTRA_CMDS='for xx 0 1: h testacc/xx\n'
 test_equal h "$EXPECTED_TESTACC" \
 	$(gethead "h testacc/0" $STD_ARGS)
