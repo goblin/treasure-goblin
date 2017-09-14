@@ -71,6 +71,12 @@ EXPECTED_ESEED="call rookie soup seed wash flower bring clinic argue wrist maze 
 # echo -n $EXPECTED_ESEED | pbkdf2 electrum | bx hd-new | bx hd-public -i 0 | bx hd-public -i 0 | bx hd-to-ec | bx ec-to-address
 EXPECTED_E1ST="1FGcV1Y4ucA2pAhZzD1CshvAoERkQSG6C4"
 
+# echo -n $EXPECTED_ESEED | pbkdf2 electrum | bx hd-new
+EXPECTED_EXPRV="xprv9s21ZrQH143K2qHySge2WW3jV6c7qJLyZ5PgHmfWTnCEHtdCeirJ82JUqeG4EfkLMZTxg5sDk2nWTupwrGTSSgchEPVM2uK8X9rbN2VaPrq"
+
+# echo $EXPECTED_EXPRV | bx hd-to-public
+EXPECTED_EXPUB="xpub661MyMwAqRbcFKNSYiB2sdzU38ScEm4pvJKH6A5827jDAgxMCGAYfpcxguazpaJaoJyurXJLpCKXfQ48Lr3jjPDaUGEM1PhrYeJ1Zoub7Dn"
+
 function run_tg() {
 	CMDS="$RUN_TG_CMDS"
 	if [ "x$CMDS" == "x" ]
@@ -191,3 +197,10 @@ EXTRA_CMDS='for xx 0 1: e1st testacc/xx\n'
 test_equal e1st "$EXPECTED_E1ST" \
 	$(gethead "e1st testacc/0" $STD_ARGS)
 
+EXTRA_CMDS='for xx 0 1: exprv testacc/xx\n'
+test_equal exprv "$EXPECTED_EXPRV" \
+	$(gethead "exprv testacc/0" $STD_ARGS)
+
+EXTRA_CMDS='for xx 0 1: expub testacc/xx\n'
+test_equal exprv "$EXPECTED_EXPUB" \
+	$(gethead "expub testacc/0" $STD_ARGS)
