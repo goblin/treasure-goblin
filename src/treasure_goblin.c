@@ -284,6 +284,7 @@ done:
 // `keyname` is not considered a cryptographic string, it will be
 //    a simple identifier like 'verification' or 'wallet/0'.
 //    slashes are considered as separators.
+//    dot means "use master entropy directly".
 static unsigned char *derive_key_name(const unsigned char *entropy, 
 		const int entsize, const char *keyname)
 {
@@ -293,7 +294,18 @@ static unsigned char *derive_key_name(const unsigned char *entropy,
 	char *nextkey;
 
 	if(!rv || !first || !subkey) {
+		printf("memory allocation failed\n");
 		goto failure;
+	}
+
+	if(strcmp(keyname, ".") == 0) {
+		if(DERIVED_ENTROPY_SIZE != MASTER_ENTROPY_SIZE) {
+			printf("assertion failed in derive_key_name\n");
+			goto failure;
+		}
+		memcpy(rv, entropy, DERIVED_ENTROPY_SIZE);
+		sodium_free(first);
+		goto done;
 	}
 
 	if((nextkey = strchr(subkey, '/'))) {
@@ -313,6 +325,8 @@ static unsigned char *derive_key_name(const unsigned char *entropy,
 		sodium_free(rv);
 		rv = rrv;
 	}
+
+done:
 	free(subkey);
 	return rv;
 
@@ -320,7 +334,6 @@ failure:
 	sodium_free(rv);
 	sodium_free(first);
 	free(subkey);
-	printf("memory allocation failed\n");
 	return NULL;
 }
 
@@ -443,7 +456,7 @@ static void print_help()
 			"eseed <key>   Print Electrum seed for <key>\n"
 			"e1st <key>    Print 1st bitcoin address used by Electrum from above seed\n"
 #endif // HAVE_LIBBITCOIN
-			"\n");
+			"\n" C_RED "THE '.' (dot) KEY IS DANGEROUS!" C_RESET " (it uses master entropy instead)\n");
 }
 
 #define RESULT_QUIT 0
