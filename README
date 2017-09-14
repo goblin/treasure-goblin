@@ -1,0 +1,57 @@
+Treasure Goblin is a tool that manages passwords and (optionally)
+crypto-coin keys.
+
+It hashes a master password using very strong crypto, combining
+three good password hashing functions: PBKDF2, scrypt and argon2.
+The last one can be configured to use an arbitrary amount of RAM,
+which makes bruteforce attacks very hard.
+
+I recommend using Diceware Passphrase to generate your master password,
+and you can use e.g. your email as salt.
+
+You can try it out using my live CD, at https://github.com/goblin/gblcclcd
+
+To derive a key from your master password, after running treasure_goblin,
+type:
+
+  h keyname
+
+You can chain multiple keys with a slash, e.g.
+
+  h keyname/0/1
+
+This allows you to group keys and give access to a subtree easily.
+For instance, you can run `treasure_goblin --master-entropy=$DATA`,
+where $DATA is the result of `h keyname`, and you'll be able to
+get the `keyname/0/1` with `h 0/1` there.
+
+The `.` (single dot) key is special - it uses master entropy directly.
+If someone gets this key this is pretty much equivalent to them
+knowing your master password, as they will be able to derive
+everything from it (by just passing it as --master-entropy).
+
+If built with libbitcoin, it will be able to generate BIP32 HD
+keys from entropy material, as well as seeds and keys that Electrum
+can use.
+
+TECHNICAL INFO
+
+Salt is hashed once with Blake2. The resulting binary data is
+then fed as salt to PBKDF2, scrypt and argon2. The output of those
+functions is XORed together to produce the master entropy.
+
+User keys are derived from master entropy using keyed Blake2, where
+the user key is passed as data, while master entropy (or parent
+key's entropy) is passed as the Blake2 key. The result is then
+once again hashed with Blake2, this time with no key.
+
+Electrum seeds are created the same way as my electrumize-seed
+script from https://github.com/goblin/electrum-scripts .
+You can then use e1st to get the first address used by Electrum,
+or expub to get the master public address it uses.
+
+DISCLAIMER
+
+This is early-stage development version and should be considered
+highly unstable. I'm not taking any responsibility for any losses
+related to the use of this software.

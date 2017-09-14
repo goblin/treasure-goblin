@@ -202,5 +202,5 @@ test_equal exprv "$EXPECTED_EXPRV" \
 	$(gethead "exprv testacc/0" $STD_ARGS)
 
 EXTRA_CMDS='for xx 0 1: expub testacc/xx\n'
-test_equal exprv "$EXPECTED_EXPUB" \
+test_equal expub "$EXPECTED_EXPUB" \
 	$(gethead "expub testacc/0" $STD_ARGS)
