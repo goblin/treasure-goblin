@@ -455,6 +455,8 @@ static void print_help()
 			"xpub <key>    Print HD xpub key for <key>\n"
 			"eseed <key>   Print Electrum seed for <key>\n"
 			"e1st <key>    Print 1st bitcoin address used by Electrum from above seed\n"
+			"exprv <key>   Print the master private key used by Electrum from eseed\n"
+			"expub <key>   Print the master public key used by Electrum from eseed\n"
 #endif // HAVE_LIBBITCOIN
 			"\n" C_RED "THE '.' (dot) KEY IS DANGEROUS!" C_RESET " (it uses master entropy instead)\n");
 }
@@ -628,100 +630,116 @@ static int cmd_for(CMD_ARGS)
 #ifdef HAVE_LIBBITCOIN
 #define BITCOIN_KEY_MAXLEN 512
 
-static int cmd_xkey(CMD_ARGS, e_btc_xkeytype keytype)
+typedef void (*subcmd_f)(CMD_ARGS, unsigned char *data, char *buf);
+
+static int buffered_cmd(CMD_ARGS, size_t bufsize, subcmd_f subcmd)
 {
 	if(!arg) {
 		printf("need an arg\n");
 		return RESULT_OK;
 	}
 
-	unsigned char *data = derive_key_name(entropy, entsize, arg);
-	char *xkey = sodium_malloc(BITCOIN_KEY_MAXLEN);
+	if(DERIVED_ENTROPY_SIZE <= 16) {
+		printf("assertion failed in buffered_cmd");
+		return RESULT_QUIT;
+	}
 
-	if(data && xkey) {
-		if(bitcoin_get_xkey(data, DERIVED_ENTROPY_SIZE, 
-					xkey, BITCOIN_KEY_MAXLEN, keytype)) {
-			if(debug_mode)
-				printf("%s %s: ", keytype == BTC_XPRV ? "xprv" : "xpub", arg);
-			print_str(xkey);
-		}
-		else
-			perror("bitcoin_get_xkey");
+	unsigned char *data = derive_key_name(entropy, entsize, arg);
+	char *buf = sodium_malloc(bufsize);
+
+	if(data && buf) {
+		subcmd(CMD_ARGNAMES, data, buf);
 	} else {
 		perror("malloc?");
 	}
-
 	sodium_free(data);
-	sodium_free(xkey);
+	sodium_free(buf);
 	return RESULT_OK;
+}
+
+static void subcmd_xkey(CMD_ARGS, unsigned char *data, char *buf, 
+		e_btc_xkeytype keytype)
+{
+	if(bitcoin_get_xkey(data, DERIVED_ENTROPY_SIZE, 
+				buf, BITCOIN_KEY_MAXLEN, keytype)) {
+		if(debug_mode)
+			printf("%s %s: ", keytype == BTC_XPRV ? "xprv" : "xpub", arg);
+		print_str(buf);
+	}
+	else
+		perror("bitcoin_get_xkey");
+}
+
+static void subcmd_xprv(CMD_ARGS, unsigned char *data, char *buf)
+{
+	subcmd_xkey(CMD_ARGNAMES, data, buf, BTC_XPRV);
+}
+
+static void subcmd_xpub(CMD_ARGS, unsigned char *data, char *buf)
+{
+	subcmd_xkey(CMD_ARGNAMES, data, buf, BTC_XPUB);
 }
 
 static int cmd_xprv(CMD_ARGS)
 {
-	return cmd_xkey(CMD_ARGNAMES, BTC_XPRV);
+	return buffered_cmd(CMD_ARGNAMES, BITCOIN_KEY_MAXLEN, subcmd_xprv);
 }
 
 static int cmd_xpub(CMD_ARGS)
 {
-	return cmd_xkey(CMD_ARGNAMES, BTC_XPUB);
+	return buffered_cmd(CMD_ARGNAMES, BITCOIN_KEY_MAXLEN, subcmd_xpub);
+}
+
+static void subcmd_eseed(CMD_ARGS, unsigned char *data, char *buf)
+{
+	if(bitcoin_get_electrum_seed(data, 16, buf, 511)) {
+		print_str(buf);
+	} else
+		perror("bitcoin_get_electrum_seed");
 }
 
 static int cmd_eseed(CMD_ARGS)
 {
-	if(!arg) {
-		printf("need an arg\n");
-		return RESULT_OK;
-	}
+	return buffered_cmd(CMD_ARGNAMES, 512, subcmd_eseed);
+}
 
-	if(DERIVED_ENTROPY_SIZE <= 16) {
-		printf("assertion failed in cmd_eseed");
-		return RESULT_QUIT;
-	}
-
-	unsigned char *data = derive_key_name(entropy, entsize, arg);
-	char *seed = sodium_malloc(512);
-
-	if(data && seed) {
-		if(bitcoin_get_electrum_seed(data, 16, seed, 511)) {
-			print_str(seed);
-		} else
-			perror("bitcoin_get_electrum_seed");
-	} else {
-		perror("malloc?");
-	}
-	
-	sodium_free(data);
-	sodium_free(seed);
-	return RESULT_OK;
+static void subcmd_e1st(CMD_ARGS, unsigned char *data, char *buf)
+{
+	if(bitcoin_get_electrum_1st(data, 16, buf, 63)) {
+		print_str(buf);
+	} else
+		perror("bitcoin_get_electrum_1st");
 }
 
 static int cmd_e1st(CMD_ARGS)
 {
-	if(!arg) {
-		printf("need an arg\n");
-		return RESULT_OK;
-	}
+	return buffered_cmd(CMD_ARGNAMES, 256, subcmd_e1st);
+}
 
-	if(DERIVED_ENTROPY_SIZE <= 16) {
-		printf("assertion failed in cmd_e1st");
-		return RESULT_QUIT;
-	}
+static void subcmd_exprv(CMD_ARGS, unsigned char *data, char *buf)
+{
+	if(bitcoin_get_electrum_xprv(data, 16, buf, 255)) {
+		print_str(buf);
+	} else
+		perror("bitcoin_get_electrum_xprv");
+}
 
-	unsigned char *data = derive_key_name(entropy, entsize, arg);
-	char *addr = sodium_malloc(64);
+static int cmd_exprv(CMD_ARGS)
+{
+	return buffered_cmd(CMD_ARGNAMES, 256, subcmd_exprv);
+}
 
-	if(data && addr) {
-		if(bitcoin_get_electrum_1st(data, 16, addr, 63)) {
-			print_str(addr);
-		} else
-			perror("bitcoin_get_electrum_1st");
-	} else {
-		perror("malloc?");
-	}
-	
-	sodium_free(data);
-	sodium_free(addr);
-	return RESULT_OK;
+static void subcmd_expub(CMD_ARGS, unsigned char *data, char *buf)
+{
+	if(bitcoin_get_electrum_xpub(data, 16, buf, 255)) {
+		print_str(buf);
+	} else
+		perror("bitcoin_get_electrum_xpub");
+}
+
+static int cmd_expub(CMD_ARGS)
+{
+	return buffered_cmd(CMD_ARGNAMES, 256, subcmd_expub);
 }
 #endif // HAVE_LIBBITCOIN
 
@@ -747,6 +765,8 @@ static int process_cmd(const char *cmd, const char *arg,
 		{ "xpub", cmd_xpub },
 		{ "eseed", cmd_eseed },
 		{ "e1st", cmd_e1st },
+		{ "exprv", cmd_exprv },
+		{ "expub", cmd_expub },
 #endif // HAVE_LIBBITCOIN
 		{ NULL, NULL }
 	};

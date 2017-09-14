@@ -18,5 +18,9 @@ EXTERNC int bitcoin_get_electrum_seed(const unsigned char *entropy,
 		unsigned entsize, char *rv, unsigned rvsize);
 EXTERNC int bitcoin_get_electrum_1st(const unsigned char *entropy, 
 		unsigned entsize, char *rv, unsigned rvsize);
+EXTERNC int bitcoin_get_electrum_xprv(const unsigned char *entropy, 
+		unsigned entsize, char *rv, unsigned rvsize);
+EXTERNC int bitcoin_get_electrum_xpub(const unsigned char *entropy, 
+		unsigned entsize, char *rv, unsigned rvsize);
 
 #endif

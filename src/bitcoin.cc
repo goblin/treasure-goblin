@@ -75,9 +75,9 @@ int bitcoin_get_electrum_seed(const unsigned char *entropy, unsigned entsize,
 	return 1;
 }
 
-// echo -n $EXPECTED_ESEED | pbkdf2 electrum | bx hd-new | bx hd-public -i 0 | bx hd-public -i 0 | bx hd-to-ec | bx ec-to-address
-int bitcoin_get_electrum_1st(const unsigned char *entropy, unsigned entsize,
-		char *rv, unsigned rvsize)
+// echo -n $EXPECTED_ESEED | pbkdf2 electrum | bx hd-new
+static int bitcoin_get_electrum_hd_key(const unsigned char *entropy,
+		unsigned entsize, libbitcoin::wallet::hd_private &rv)
 {
 	std::string eseed;
 	if(!bitcoin_get_electrum_seed_str(entropy, entsize, eseed))
@@ -93,7 +93,19 @@ int bitcoin_get_electrum_1st(const unsigned char *entropy, unsigned entsize,
 		return 0;
 
 	std::vector<uint8_t> entr(entrbuf, entrbuf + entrlen);
-	auto ec_point = libbitcoin::wallet::hd_private(entr). // hd-new
+	rv = libbitcoin::wallet::hd_private(entr); // hd-new
+	return 1;
+}
+
+// ... | bx hd-public -i 0 | bx hd-public -i 0 | bx hd-to-ec | bx ec-to-address
+int bitcoin_get_electrum_1st(const unsigned char *entropy, unsigned entsize,
+		char *rv, unsigned rvsize)
+{
+	libbitcoin::wallet::hd_private priv;
+	if(!bitcoin_get_electrum_hd_key(entropy, entsize, priv))
+		return 0;
+
+	auto ec_point = priv.
 		derive_public(0). // hd-public -i 0
 		derive_public(0). // hd-public -i 0
 		point(); // hd-to-ec
@@ -105,6 +117,40 @@ int bitcoin_get_electrum_1st(const unsigned char *entropy, unsigned entsize,
 		return 0;
 
 	strcpy(rv, addr.c_str());
+
+	return 1;
+}
+
+int bitcoin_get_electrum_xprv(const unsigned char *entropy, unsigned entsize,
+		char *rv, unsigned rvsize)
+{
+	libbitcoin::wallet::hd_private priv;
+	if(!bitcoin_get_electrum_hd_key(entropy, entsize, priv))
+		return 0;
+
+	std::string str = priv.encoded();
+
+	if(rvsize < str.size() + 1)
+		return 0;
+
+	strcpy(rv, str.c_str());
+
+	return 1;
+}
+
+int bitcoin_get_electrum_xpub(const unsigned char *entropy, unsigned entsize,
+		char *rv, unsigned rvsize)
+{
+	libbitcoin::wallet::hd_private priv;
+	if(!bitcoin_get_electrum_hd_key(entropy, entsize, priv))
+		return 0;
+
+	std::string str = priv.to_public().encoded();
+
+	if(rvsize < str.size() + 1)
+		return 0;
+
+	strcpy(rv, str.c_str());
 
 	return 1;
 }
