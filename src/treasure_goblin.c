@@ -853,7 +853,7 @@ static unsigned char *get_master_entropy_by_pwd_hash(struct tg_opts *tgo)
 	char *master_passwd = NULL;
 
 	printf("Please enter your " C_WHITE "salt" C_RESET ":\n");
-	salt = linenoise(C_WHITE "salt" C_RESET "> ");
+	salt = linenoise("salt> ");
 	if(!salt) {
 		printf("no salt?\n");
 		return NULL;
