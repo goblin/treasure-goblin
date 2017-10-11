@@ -281,26 +281,26 @@ done:
 }
 
 // remember to sodium_free!
-// `keyname` is not considered a cryptographic string, it will be
+// `tag` is not considered a cryptographic string, it will be
 //    a simple identifier like 'verification' or 'wallet/0'.
 //    slashes are considered as separators.
 //    dot means "use master entropy directly".
-static unsigned char *derive_key_name(const unsigned char *entropy, 
-		const int entsize, const char *keyname)
+static unsigned char *derive_tag(const unsigned char *entropy, 
+		const int entsize, const char *tag)
 {
 	unsigned char *rv = sodium_malloc(DERIVED_ENTROPY_SIZE);
 	unsigned char *first = sodium_malloc(DERIVED_ENTROPY_SIZE);
-	char *subkey = strdup(keyname);
-	char *nextkey;
+	char *subtag = strdup(tag);
+	char *nexttag;
 
-	if(!rv || !first || !subkey) {
+	if(!rv || !first || !subtag) {
 		printf("memory allocation failed\n");
 		goto failure;
 	}
 
-	if(strcmp(keyname, ".") == 0) {
+	if(strcmp(tag, ".") == 0) {
 		if(DERIVED_ENTROPY_SIZE != MASTER_ENTROPY_SIZE) {
-			printf("assertion failed in derive_key_name\n");
+			printf("assertion failed in derive_tag\n");
 			goto failure;
 		}
 		memcpy(rv, entropy, DERIVED_ENTROPY_SIZE);
@@ -308,32 +308,32 @@ static unsigned char *derive_key_name(const unsigned char *entropy,
 		goto done;
 	}
 
-	if((nextkey = strchr(subkey, '/'))) {
-		*nextkey = 0;
-		nextkey++;
+	if((nexttag = strchr(subtag, '/'))) {
+		*nexttag = 0;
+		nexttag++;
 	}
 
-	crypto_generichash(first, DERIVED_ENTROPY_SIZE, (unsigned char*)subkey, 
-			strlen(subkey), entropy, entsize);
+	crypto_generichash(first, DERIVED_ENTROPY_SIZE, (unsigned char*)subtag, 
+			strlen(subtag), entropy, entsize);
 	crypto_generichash(rv, DERIVED_ENTROPY_SIZE, first, DERIVED_ENTROPY_SIZE,
 			NULL, 0);
 
 	sodium_free(first);
 
-	if(nextkey) {
-		unsigned char *rrv = derive_key_name(rv, DERIVED_ENTROPY_SIZE, nextkey);
+	if(nexttag) {
+		unsigned char *rrv = derive_tag(rv, DERIVED_ENTROPY_SIZE, nexttag);
 		sodium_free(rv);
 		rv = rrv;
 	}
 
 done:
-	free(subkey);
+	free(subtag);
 	return rv;
 
 failure:
 	sodium_free(rv);
 	sodium_free(first);
-	free(subkey);
+	free(subtag);
 	return NULL;
 }
 
@@ -402,7 +402,7 @@ static void print_str(const char *data)
 static void print_verification(const unsigned char *entropy, const int entsize, 
 	const char **dict)
 {
-	unsigned char *data = derive_key_name(entropy, entsize,
+	unsigned char *data = derive_tag(entropy, entsize,
 			VERIFICATION_KEY_NAME);
 	char *colors[] = {
 		C_GRAY,
@@ -443,22 +443,22 @@ static void print_help()
 	printf("\n"
 			"help            Show command help\n"
 			"exit, quit      Exit program\n"
-			"h <key>         Print hex data for <key>\n"
-			"h32 <key>       as above but truncate to 256 bits\n"
-			"h16 <key>       as above but truncate to 128 bits\n"
+			"h <tag>         Print hex data for <tag>\n"
+			"h32 <tag>       as above but truncate to 256 bits\n"
+			"h16 <tag>       as above but truncate to 128 bits\n"
 			"r               Toggle readable output\n"
 			"for <var> <from> <to>: <cmd>\n"
 			"                Iterate <var> on the range [<from>, <to>) and execute\n"
 			"                <cmd> substituting <var> for each integer value\n"
 #ifdef HAVE_LIBBITCOIN
-		  "\nxprv <key>    Print HD xprv key for <key>\n"
-			"xpub <key>    Print HD xpub key for <key>\n"
-			"eseed <key>   Print Electrum seed for <key>\n"
-			"e1st <key>    Print 1st bitcoin address used by Electrum from above seed\n"
-			"exprv <key>   Print the master private key used by Electrum from eseed\n"
-			"expub <key>   Print the master public key used by Electrum from eseed\n"
+		  "\nxprv <tag>    Print HD xprv key for <tag>\n"
+			"xpub <tag>    Print HD xpub key for <tag>\n"
+			"eseed <tag>   Print Electrum seed for <tag>\n"
+			"e1st <tag>    Print 1st bitcoin address used by Electrum from eseed\n"
+			"exprv <tag>   Print the master private key used by Electrum from eseed\n"
+			"expub <tag>   Print the master public key used by Electrum from eseed\n"
 #endif // HAVE_LIBBITCOIN
-			"\n" C_RED "THE '.' (dot) KEY IS DANGEROUS!" C_RESET " (it uses master entropy instead)\n");
+			"\n" C_RED "THE DOT TAG ('.') IS DANGEROUS!" C_RESET " (it uses master entropy instead)\n");
 }
 
 #define RESULT_QUIT 0
@@ -486,16 +486,16 @@ static int cmd_hex(CMD_ARGS, int len)
 	unsigned char *data;
 
 	if(!arg) {
-		printf("need a key\n");
+		printf("need a tag\n");
 		return RESULT_OK;
 	}
 
-	data = derive_key_name(entropy, entsize, arg);
+	data = derive_tag(entropy, entsize, arg);
 
 	if(data)
 		print_hex(data, len);
 	else
-		perror("derive_key_name failed");
+		perror("derive_tag failed");
 
 	sodium_free(data);
 	return RESULT_OK;
@@ -644,7 +644,7 @@ static int buffered_cmd(CMD_ARGS, size_t bufsize, subcmd_f subcmd)
 		return RESULT_QUIT;
 	}
 
-	unsigned char *data = derive_key_name(entropy, entsize, arg);
+	unsigned char *data = derive_tag(entropy, entsize, arg);
 	char *buf = sodium_malloc(bufsize);
 
 	if(data && buf) {
